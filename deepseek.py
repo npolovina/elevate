@@ -30,4 +30,4 @@ class DeepSeek:
 
 # Example Usage
 api_key = "sk-81fa49ab45e34833a68cc37fc627a53e"
-chatbot = Talk2Me(api_key)
+chatbot = DeepSeek(api_key)
