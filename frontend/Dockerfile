@@ -1,43 +1,30 @@
-# Use official Node.js LTS image
-FROM node:18-alpine3.17
+# Build stage
+FROM node:16-alpine as build
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apk add --no-cache \
-    git \
-    curl \
-    bash \
-    python3 \
-    build-base
+# Copy package files and install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Set environment to production by default
-ENV NODE_ENV=production
-
-# Create non-root user for security
-RUN addgroup -S appgroup && \
-    adduser -S appuser -G appgroup
-
-# Copy package files first for better caching
-COPY package*.json ./
-
-# Install dependencies
-# Use ci for clean, reproducible builds
-RUN npm ci && \
-    npm cache clean --force
-
-# Copy the rest of the application
+# Copy the rest of the application code
 COPY . .
 
-# Set correct permissions
-RUN chown -R appuser:appgroup /app
+# Set the API URL for production
+ENV REACT_APP_API_URL=/api
 
-# Switch to non-root user
-USER appuser
+# Build the app
+RUN npm run build
 
-# Expose port for development
-EXPOSE 3000
+# Production stage
+FROM nginx:alpine
 
-# Default command for development
-CMD ["npm", "start"]
+# Copy the build output from the build stage
+COPY --from=build /app/build /usr/share/nginx/html
+
+# Copy custom nginx config
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

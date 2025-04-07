@@ -32,7 +32,7 @@ app.add_middleware(
 )
 
 # AI Chatbot initialization
-AI_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-your-default-key")
+AI_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-c03808cf0b4544d7ae15e4bed8d5fddc")
 ai_chatbot = DeepSeek(AI_API_KEY)
 
 # Pydantic models for request/response validation

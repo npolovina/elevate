@@ -2,32 +2,38 @@
 module.exports = {
     content: [
       "./src/**/*.{js,jsx,ts,tsx}",
+      "./public/index.html",
     ],
     theme: {
       extend: {
         colors: {
-          // You can add custom colors here
-          'elevate-blue': {
-            50: '#e6f1ff',
-            100: '#b3d7ff',
-            500: '#0066cc',
-            600: '#0052a3'
+          indigo: {
+            50: '#eef2ff',
+            100: '#e0e7ff',
+            200: '#c7d2fe',
+            300: '#a5b4fc',
+            400: '#818cf8',
+            500: '#6366f1',
+            600: '#4f46e5',
+            700: '#4338ca',
+            800: '#3730a3',
+            900: '#312e81',
           },
-          'elevate-green': {
-            50: '#e6f5f0',
-            100: '#b3e6d1',
-            500: '#00cc99',
-            600: '#00a37a'
-          }
         },
-        animation: {
-          'pulse-slow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        }
+        fontFamily: {
+          sans: ['Inter', 'sans-serif'],
+        },
+        spacing: {
+          '72': '18rem',
+          '84': '21rem',
+          '96': '24rem',
+        },
+        boxShadow: {
+          subtle: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+        },
       },
     },
     plugins: [
-        // Add any Tailwind plugins here
-        require('@tailwindcss/forms'),
-        require('@tailwindcss/typography')
-      ],
-    };
+      require('@tailwindcss/forms'),
+    ],
+  }
