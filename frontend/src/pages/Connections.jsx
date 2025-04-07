@@ -9,15 +9,18 @@ function Connections() {
     recommended_learning: []
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchRecommendations = async () => {
+  
+  const fetchRecommendations = async () => {
       setIsLoading(true);
       setError(null);
 
       try {
         const userId = connectionService.getCurrentUserId();
+        // Fetch fresh recommendations each time this page loads
+        // This ensures changes to user profile skills are reflected
         const data = await connectionService.getRecommendations(userId);
         setRecommendations(data);
       } catch (err) {
@@ -25,9 +28,16 @@ function Connections() {
         console.error('Error fetching recommendations:', err);
       } finally {
         setIsLoading(false);
+        setIsRefreshing(false);
       }
     };
 
+  const handleRefresh = () => {
+        setIsRefreshing(true);
+        fetchRecommendations();
+    };
+    
+    useEffect(() => {
     fetchRecommendations();
   }, []);
 

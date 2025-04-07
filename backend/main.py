@@ -1,9 +1,14 @@
+# backend/main.py
 import os
 import sys
-from fastapi import FastAPI, HTTPException
+import logging
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+import time
+from config import settings
 
 # Add the directory containing mock data to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,8 +22,14 @@ from job_postings import job_postings
 from learning_materials_dataset import learning_materials
 from user_profiles import user_profiles
 
-# Import DeepSeek for AI interactions
-from deepseek import DeepSeek
+# Import configuration, cache, and improved DeepSeek client
+from config import settings
+from cache import response_cache
+from deepseek import DeepSeek, DeepSeekAPIError
+
+# Configure logging
+logger = logging.getLogger("main")
+logger.setLevel(getattr(logging, settings.LOG_LEVEL))
 
 app = FastAPI(title="Elevate Career Coach")
 
@@ -30,10 +41,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# AI Chatbot initialization
-AI_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-c03808cf0b4544d7ae15e4bed8d5fddc")
-ai_chatbot = DeepSeek(AI_API_KEY)
 
 # Pydantic models for request/response validation
 class STARRequest(BaseModel):
@@ -50,19 +57,64 @@ class MoodCheckRequest(BaseModel):
     mood: str
     feedback: Optional[str] = None
 
+class CacheStatsResponse(BaseModel):
+    total_entries: int
+    active_entries: int
+    expired_entries: int
+    max_size: int
+    ttl: int
+    enabled: bool
+
+# AI Chatbot dependency injection
+def get_ai_client():
+    """Dependency for getting the AI client instance."""
+    try:
+        client = DeepSeek(api_key="sk-c03808cf0b4544d7ae15e4bed8d5fddc")
+        return client
+    except Exception as e:
+        logger.error(f"Failed to initialize DeepSeek client: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to initialize AI service")
+
 # Helper function to find a user profile
 def find_user_profile(user_id: str) -> Dict[str, Any]:
     """Find a user profile by user_id"""
     return next((user for user in user_profiles if user['user_id'] == user_id), None)
 
+# Middleware for request timing and logging
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    logger.info(f"Request to {request.url.path} processed in {process_time:.4f} seconds")
+    return response
+
+# Error handler for DeepSeekAPIError
+@app.exception_handler(DeepSeekAPIError)
+async def deepseek_error_handler(request: Request, exc: DeepSeekAPIError):
+    status_code = exc.status_code if exc.status_code else 503
+    logger.error(f"DeepSeek API error: {exc.message}")
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": f"AI service error: {exc.message}"}
+    )
+
 # Endpoints for different features
 @app.post("/api/create/star-summary")
-async def generate_star_summary(request: STARRequest):
+async def generate_star_summary(
+    request: STARRequest, 
+    ai_client: DeepSeek = Depends(get_ai_client)
+):
     """Generate STAR format summary for a completed JIRA ticket"""
     # Find the ticket
     ticket = next((t for t in jira_tickets if t['ticket_id'] == request.ticket_id), None)
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    # Check if ticket is completed
+    if ticket.get('status') != 'Completed':
+        raise HTTPException(status_code=400, detail="STAR summaries can only be generated for completed tickets")
     
     # Prepare prompt for STAR summary
     prompt = f"""Generate a STAR (Situation, Task, Action, Result) format summary for this completed JIRA ticket:
@@ -74,13 +126,23 @@ async def generate_star_summary(request: STARRequest):
     Format the response as a clear STAR format summary highlighting the impact and achievements."""
     
     try:
-        star_summary = ai_chatbot.get_response(prompt)
+        # Use the improved client with better error handling and caching
+        star_summary = ai_client.get_response(
+            user_input=prompt,
+            system_prompt="You are a helpful career coach specializing in creating professional STAR format summaries.",
+            temperature=0.5,  # Lower temperature for more focused/professional responses
+            use_cache=True    # Enable caching for STAR summaries
+        )
         return {"star_summary": star_summary}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+        logger.error(f"Unexpected error in STAR summary generation: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/api/create/documentation")
-async def get_documentation(request: DocumentationRequest):
+async def get_documentation(
+    request: DocumentationRequest, 
+    ai_client: DeepSeek = Depends(get_ai_client)
+):
     """Retrieve relevant documentation based on query"""
     # Search through company documentation
     relevant_docs = [
@@ -103,18 +165,23 @@ async def get_documentation(request: DocumentationRequest):
         Relevant Documents:
         {doc_context}
         
-        Provide a clear, concise explanation and guidance."""
+        Provide a clear, concise explanation and guidance in a bullet structured format."""
         
         try:
-            ai_explanation = ai_chatbot.get_response(prompt)
+            ai_explanation = ai_client.get_response(
+                user_input=prompt,
+                system_prompt="You are a helpful documentation assistant who provides clear and accurate explanations.",
+                temperature=0.3  # Lower temperature for factual responses
+            )
             return {
                 "documents": relevant_docs,
                 "ai_explanation": ai_explanation
             }
         except Exception as e:
+            logger.error(f"Error generating AI explanation: {str(e)}")
             ai_explanation = "Unable to generate AI explanation due to an error."
     
-    return {"documents": [], "ai_explanation": "No directly relevant documentation found."}
+    return {"documents": relevant_docs, "ai_explanation": "No directly relevant documentation found."}
 
 @app.post("/api/connect/recommendations")
 async def get_connection_recommendations(request: ConnectionRecommendationRequest):
@@ -146,7 +213,10 @@ async def get_connection_recommendations(request: ConnectionRecommendationReques
     }
 
 @app.post("/api/elevate/job-recommendations")
-async def get_job_recommendations(request: ConnectionRecommendationRequest):
+async def get_job_recommendations(
+    request: ConnectionRecommendationRequest, 
+    ai_client: DeepSeek = Depends(get_ai_client)
+):
     """Provide job recommendations based on user profile"""
     # Find the user
     user = find_user_profile(request.user_id)
@@ -176,20 +246,33 @@ async def get_job_recommendations(request: ConnectionRecommendationRequest):
         Provide personalized commentary on how these roles align with the user's career aspirations and skill development."""
         
         try:
-            ai_recommendations = ai_chatbot.get_response(prompt)
+            ai_recommendations = ai_client.get_response(
+                user_input=prompt,
+                system_prompt="You are a career coach specializing in job recommendations and career development.",
+                temperature=0.6
+            )
             
             return {
                 "recommended_jobs": matched_jobs,
                 "ai_recommendations": ai_recommendations
             }
         except Exception as e:
+            logger.error(f"Error generating job recommendations: {str(e)}")
             ai_recommendations = "Unable to generate personalized job recommendations due to an error."
     
-    return {"recommended_jobs": [], "ai_recommendations": "No suitable job matches found at this time."}
+    return {"recommended_jobs": matched_jobs, "ai_recommendations": "No suitable job matches found at this time."}
 
 @app.post("/api/create/mood-check")
-async def submit_mood_check(request: MoodCheckRequest):
+async def submit_mood_check(
+    request: MoodCheckRequest, 
+    ai_client: DeepSeek = Depends(get_ai_client)
+):
     """Submit mood check and feedback"""
+    # Validate mood input
+    valid_moods = ["great", "good", "okay", "stressed", "overwhelmed"]
+    if request.mood.lower() not in valid_moods:
+        raise HTTPException(status_code=400, detail=f"Invalid mood. Valid options are: {', '.join(valid_moods)}")
+    
     # Here you would typically save to a database
     # For now, we'll use AI to provide some insights
     prompt = f"""User's mood: {request.mood}
@@ -198,7 +281,11 @@ async def submit_mood_check(request: MoodCheckRequest):
     Provide a supportive and constructive response that acknowledges the user's feelings and offers positive guidance."""
     
     try:
-        ai_insight = ai_chatbot.get_response(prompt)
+        ai_insight = ai_client.get_response(
+            user_input=prompt,
+            system_prompt="You are an empathetic career coach who provides supportive guidance.",
+            temperature=0.7
+        )
         
         return {
             "mood": request.mood,
@@ -206,16 +293,47 @@ async def submit_mood_check(request: MoodCheckRequest):
             "ai_insight": ai_insight
         }
     except Exception as e:
+        logger.error(f"Error generating mood insights: {str(e)}")
         return {
             "mood": request.mood,
             "feedback": request.feedback,
             "ai_insight": "Thank you for sharing. Your feelings are valid, and it's great that you're taking time for self-reflection."
         }
 
-# Optional: Root endpoint for health check
+# Endpoint to get cache statistics
+@app.get("/api/admin/cache-stats", response_model=CacheStatsResponse)
+async def get_cache_stats():
+    """Get cache statistics for monitoring"""
+    stats = response_cache.get_stats()
+    return stats
+
+# Endpoint to clear the cache
+@app.post("/api/admin/clear-cache")
+async def clear_cache():
+    """Clear the response cache"""
+    response_cache.clear()
+    return {"message": "Cache cleared successfully"}
+
+# Root endpoint for health check
 @app.get("/")
 async def root():
-    return {"message": "Welcome to Elevate Career Coach API"}
+    return {
+        "message": "Welcome to Elevate Career Coach API",
+        "status": "operational",
+        "version": "1.0.0"
+    }
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "api_version": "1.0.0",
+        "environment": settings.APP_ENV,
+        "cache_enabled": response_cache.enabled,
+        "deepseek_configured": bool(settings.DEEPSEEK_API_KEY)
+    }
 
 if __name__ == "__main__":
     import uvicorn

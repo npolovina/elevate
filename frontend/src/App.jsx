@@ -8,6 +8,7 @@ import Footer from './components/common/Footer';
 
 // Pages
 import Dashboard from './pages/Dashboard';
+import ProfileSetup from './pages/ProfileSetup';
 import StarSummary from './pages/StarSummary';
 import Documentation from './pages/Documentation';
 import Connections from './pages/Connections';
@@ -25,6 +26,7 @@ function App() {
           <main className="flex-1 p-6">
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/profile-setup" element={<ProfileSetup />} />
               <Route path="/star-summary" element={<StarSummary />} />
               <Route path="/documentation" element={<Documentation />} />
               <Route path="/connections" element={<Connections />} />
