@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SkillInput from '../components/profile/SkillInput';
-import profileService from '../services/profileService';
+import { useProfile } from '../context/ProfileContext';
 
 function ProfileSetup() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
+  const { profile, isLoading: profileLoading, updateProfile, error: profileError, refreshProfile } = useProfile();
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -22,36 +22,27 @@ function ProfileSetup() {
     github_url: ''
   });
 
-  // Load initial profile data
+  // Load profile data from context
   useEffect(() => {
-    const fetchProfileData = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const userData = await profileService.getCurrentUserProfile();
-        setProfileData({
-          name: userData.name || '',
-          email: userData.email || '',
-          department: userData.department || '',
-          role: userData.role || '',
-          skills: userData.skills || [],
-          desired_skills: userData.desired_skills || [],
-          bio: userData.bio || '',
-          years_of_experience: userData.experience?.toString() || '',
-          linkedin_url: userData.linkedin_url || '',
-          github_url: userData.github_url || ''
-        });
-      } catch (err) {
-        setError('Failed to load profile data. Please try again later.');
-        console.error('Error loading profile data:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProfileData();
-  }, []);
+    if (profile && !profileLoading) {
+      setProfileData({
+        name: profile.name || '',
+        email: profile.email || '',
+        department: profile.department || '',
+        role: profile.role || '',
+        skills: profile.skills || [],
+        desired_skills: profile.desired_skills || [],
+        bio: profile.bio || '',
+        years_of_experience: profile.experience?.toString() || '',
+        linkedin_url: profile.linkedin_url || '',
+        github_url: profile.github_url || ''
+      });
+    }
+    
+    if (profileError) {
+      setError(profileError);
+    }
+  }, [profile, profileLoading, profileError]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -82,11 +73,22 @@ function ProfileSetup() {
     setSaveSuccess(false);
 
     try {
-      await profileService.updateUserProfile(profileData);
-      // Show success message instead of navigating away
-      setSaveSuccess(true);
-      // Scroll to top to show success message
-      window.scrollTo(0, 0);
+      // Convert years_of_experience back to number for API
+      const dataToSubmit = {
+        ...profileData,
+        experience: profileData.years_of_experience ? parseInt(profileData.years_of_experience, 10) : undefined
+      };
+      
+      const result = await updateProfile(dataToSubmit);
+      if (result.success) {
+        // Ensure the profile is refreshed in the context
+        await refreshProfile();
+        setSaveSuccess(true);
+        // Scroll to top to show success message
+        window.scrollTo(0, 0);
+      } else {
+        setError(result.error || 'Failed to update profile.');
+      }
     } catch (err) {
       setError('Failed to update profile. Please try again later.');
       console.error('Error updating profile:', err);
@@ -95,7 +97,7 @@ function ProfileSetup() {
     }
   };
 
-  if (isLoading) {
+  if (profileLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-center items-center h-64">

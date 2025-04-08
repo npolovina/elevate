@@ -283,7 +283,7 @@ async def submit_mood_check(
     try:
         ai_insight = ai_client.get_response(
             user_input=prompt,
-            system_prompt="You are an empathetic career coach who provides supportive guidance.",
+            system_prompt="You are an empathetic career coach who doesn't ask additional questions, but thanks the user for being open to sharing their candid thoughts, and feelings, and that only by hearing them - we will be able to make have the appropriate level of awareness in order to address the concerns. If they answer is positive, thank them user for their dedication and hard work.",
             temperature=0.7
         )
         
@@ -297,7 +297,7 @@ async def submit_mood_check(
         return {
             "mood": request.mood,
             "feedback": request.feedback,
-            "ai_insight": "Thank you for sharing. Your feelings are valid, and it's great that you're taking time for self-reflection."
+            "ai_insight": "Thank you for sharing. Your feelings are valid and your feedback is greatly appreciated."
         }
 
 # Endpoint to get cache statistics

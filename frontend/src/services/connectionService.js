@@ -12,7 +12,23 @@ const connectionService = {
       // First, get the current user profile to have access to the latest skills
       const currentUserProfile = await profileService.getCurrentUserProfile();
       
-      // Then make the API call for recommendations
+      // Call the optimize method that does the actual work
+      return connectionService.getRecommendationsWithProfile(userId, currentUserProfile);
+    } catch (error) {
+      console.error('Error getting recommendations:', error);
+      throw error;
+    }
+  },
+  
+  /**
+   * Get recommendations using a provided profile (to avoid duplicate API calls)
+   * @param {string} userId - The user ID
+   * @param {object} userProfile - The user profile data
+   * @returns {Promise} Promise object representing the recommendations
+   */
+  getRecommendationsWithProfile: async (userId, userProfile) => {
+    try {
+      // Make the API call for recommendations
       const response = await api.post('/connect/recommendations', {
         user_id: userId
       });
@@ -20,10 +36,14 @@ const connectionService = {
       // Filter recommendations based on latest skills and desired skills
       const result = response.data;
       
+      if (!userProfile) {
+        return result; // If no profile is provided, return raw results
+      }
+      
       if (result.potential_connections && result.potential_connections.length > 0) {
         // Filter connections based on skills match with current profile
-        const userSkills = new Set(currentUserProfile.skills || []);
-        const userDesiredSkills = new Set(currentUserProfile.desired_skills || []);
+        const userSkills = new Set(userProfile.skills || []);
+        const userDesiredSkills = new Set(userProfile.desired_skills || []);
         
         // Enhance matching by checking skill overlap
         result.potential_connections = result.potential_connections.map(connection => {
@@ -52,7 +72,7 @@ const connectionService = {
       
       if (result.recommended_learning && result.recommended_learning.length > 0) {
         // Filter learning resources based on desired skills match with current profile
-        const userDesiredSkills = new Set(currentUserProfile.desired_skills || []);
+        const userDesiredSkills = new Set(userProfile.desired_skills || []);
         
         // Only include learning resources that match current desired skills
         result.recommended_learning = result.recommended_learning
@@ -84,7 +104,7 @@ const connectionService = {
       
       return result;
     } catch (error) {
-      console.error('Error getting recommendations:', error);
+      console.error('Error getting recommendations with profile:', error);
       throw error;
     }
   },
