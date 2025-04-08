@@ -25,10 +25,7 @@ const profileService = {
         projects: ["Customer Portal", "Analytics Dashboard", "Payment System"],
         desired_skills: ["Kubernetes", "Machine Learning", "Leadership"],
         manager_id: "manager456",
-        joined_date: "2020-03-15",
-        bio: "Experienced software engineer with a passion for building scalable applications and learning new technologies. I enjoy solving complex problems and collaborating with cross-functional teams.",
-        linkedin_url: "alexjohnson",
-        github_url: "alexj-dev"
+        joined_date: "2020-03-15"
       };
       
       return profile;

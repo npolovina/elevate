@@ -2,35 +2,35 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import connectionService from '../services/connectionService';
 import starService from '../services/starService';
-import { useProfile } from '../context/ProfileContext';
 
 function Dashboard() {
-  const { profile, isLoading: profileLoading } = useProfile();
   const [isLoading, setIsLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState({
     completedTickets: [],
     recommendations: {
       potential_connections: [],
       recommended_learning: []
-    }
+    },
+    userName: 'Alex Johnson'
   });
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       setIsLoading(true);
       try {
-        // Get user data from context
+        // Get user data
         const userId = connectionService.getCurrentUserId();
         
         // Get tickets data
         const tickets = await starService.getCompletedTickets();
         
-        // Get recommendations using the profile from context
-        const recommendations = await connectionService.getRecommendationsWithProfile(userId, profile);
+        // Get recommendations
+        const recommendations = await connectionService.getRecommendations(userId);
         
         setDashboardData({
           completedTickets: tickets,
-          recommendations: recommendations
+          recommendations: recommendations,
+          userName: 'Alex Johnson' // In a real app, you'd get this from a user service
         });
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -39,13 +39,10 @@ function Dashboard() {
       }
     };
 
-    // Only fetch when profile is available
-    if (profile && !profileLoading) {
-      fetchDashboardData();
-    }
-  }, [profile, profileLoading]);
+    fetchDashboardData();
+  }, []);
 
-  if (isLoading || profileLoading) {
+  if (isLoading) {
     return (
       <div className="container mx-auto">
         <div className="flex justify-center items-center h-64">
@@ -58,7 +55,7 @@ function Dashboard() {
   return (
     <div className="container mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-800">Welcome back, {profile?.name || 'User'}!</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Welcome back, {dashboardData.userName}!</h1>
         <p className="text-gray-600 mt-2">Let's continue growing your career today.</p>
       </div>
       
@@ -130,12 +127,7 @@ function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
         {/* Connection Recommendations */}
         <div className="bg-white shadow-md rounded-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Recommended Connections</h2>
-            <Link to="/profile-setup" className="text-sm text-indigo-600 hover:text-indigo-800">
-              Update Skills
-            </Link>
-          </div>
+          <h2 className="text-xl font-bold mb-4 text-gray-800">Recommended Connections</h2>
           {dashboardData.recommendations.potential_connections.length > 0 ? (
             <div className="divide-y divide-gray-200">
               {dashboardData.recommendations.potential_connections.slice(0, 3).map((connection) => (
@@ -148,25 +140,11 @@ function Dashboard() {
                       <h3 className="text-sm font-medium text-gray-800">{connection.name}</h3>
                       <p className="text-xs text-gray-600">{connection.role}</p>
                       <div className="mt-1 flex flex-wrap gap-1">
-                        {connection.skills.slice(0, 2).map((skill, idx) => {
-                          // Check if this is a matching skill with the user's profile
-                          const isMatchingSkill = idx < (connection.matchScore || 0);
-                          return (
-                            <span 
-                              key={idx} 
-                              className={`text-xs inline-block py-0.5 px-1.5 leading-none text-center whitespace-nowrap align-baseline font-medium rounded ${
-                                isMatchingSkill 
-                                  ? 'bg-green-100 text-green-700' // Highlight matching skills
-                                  : 'bg-indigo-100 text-indigo-700'
-                              }`}
-                            >
-                              {skill}
-                              {isMatchingSkill && (
-                                <span className="ml-1" title="Matching skill">✓</span>
-                              )}
-                            </span>
-                          );
-                        })}
+                        {connection.skills.slice(0, 2).map((skill, idx) => (
+                          <span key={idx} className="text-xs inline-block py-0.5 px-1.5 leading-none text-center whitespace-nowrap align-baseline font-medium bg-indigo-100 text-indigo-700 rounded">
+                            {skill}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -185,12 +163,7 @@ function Dashboard() {
         
         {/* Learning Recommendations */}
         <div className="bg-white shadow-md rounded-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Learning Opportunities</h2>
-            <Link to="/profile-setup" className="text-sm text-indigo-600 hover:text-indigo-800">
-              Update Desired Skills
-            </Link>
-          </div>
+          <h2 className="text-xl font-bold mb-4 text-gray-800">Learning Opportunities</h2>
           {dashboardData.recommendations.recommended_learning.length > 0 ? (
             <div className="divide-y divide-gray-200">
               {dashboardData.recommendations.recommended_learning.slice(0, 3).map((course) => (
@@ -198,25 +171,11 @@ function Dashboard() {
                   <h3 className="text-sm font-medium text-gray-800">{course.title}</h3>
                   <p className="text-xs text-gray-600">{course.type} • {course.duration}</p>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {course.skills.slice(0, 2).map((skill, idx) => {
-                      // Check if this is a matching skill with the user's desired skills
-                      const isMatchingSkill = idx < (course.matchScore || 0);
-                      return (
-                        <span 
-                          key={idx} 
-                          className={`text-xs inline-block py-0.5 px-1.5 leading-none text-center whitespace-nowrap align-baseline font-medium rounded ${
-                            isMatchingSkill 
-                              ? 'bg-green-100 text-green-700' // Highlight matching skills
-                              : 'bg-indigo-100 text-indigo-700'
-                          }`}
-                        >
-                          {skill}
-                          {isMatchingSkill && (
-                            <span className="ml-1" title="Matching desired skill">✓</span>
-                          )}
-                        </span>
-                      );
-                    })}
+                    {course.skills.slice(0, 2).map((skill, idx) => (
+                      <span key={idx} className="text-xs inline-block py-0.5 px-1.5 leading-none text-center whitespace-nowrap align-baseline font-medium bg-indigo-100 text-indigo-700 rounded">
+                        {skill}
+                      </span>
+                    ))}
                   </div>
                 </div>
               ))}

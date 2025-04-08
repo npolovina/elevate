@@ -6,7 +6,6 @@ function ConnectionRecommendations({ connections }) {
       <div className="bg-white shadow-md rounded-lg p-6">
         <h2 className="text-xl font-bold mb-4 text-gray-800">Recommended Connections</h2>
         <p className="text-gray-600">No connection recommendations available at this time.</p>
-        <p className="text-gray-600 mt-2">Try updating your skills in your profile to get personalized connection recommendations.</p>
       </div>
     );
   }
@@ -16,7 +15,6 @@ function ConnectionRecommendations({ connections }) {
       <h2 className="text-xl font-bold mb-4 text-gray-800">Recommended Connections</h2>
       <p className="text-gray-600 mb-4">
         Connect with colleagues who share your skills and interests to expand your network.
-        Recommendations are based on your current profile skills and interests.
       </p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -34,25 +32,11 @@ function ConnectionRecommendations({ connections }) {
                 <div className="mt-2">
                   <h4 className="text-xs font-semibold text-gray-500">SKILLS</h4>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {connection.skills.slice(0, 3).map((skill, idx) => {
-                      // Check if this is a matching skill with the user's profile
-                      const isMatchingSkill = idx < (connection.matchScore || 0);
-                      return (
-                        <span 
-                          key={idx} 
-                          className={`text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium rounded ${
-                            isMatchingSkill 
-                              ? 'bg-green-100 text-green-700' // Highlight matching skills
-                              : 'bg-indigo-100 text-indigo-700'
-                          }`}
-                        >
-                          {skill}
-                          {isMatchingSkill && (
-                            <span className="ml-1" title="Matching skill">✓</span>
-                          )}
-                        </span>
-                      );
-                    })}
+                    {connection.skills.slice(0, 3).map((skill, idx) => (
+                      <span key={idx} className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-indigo-100 text-indigo-700 rounded">
+                        {skill}
+                      </span>
+                    ))}
                     {connection.skills.length > 3 && (
                       <span className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-gray-100 text-gray-700 rounded">
                         +{connection.skills.length - 3} more

@@ -9,10 +9,10 @@ const connectionService = {
    */
   getRecommendations: async (userId) => {
     try {
-      // First, get the current user profile to have access to the latest skills
+      // First, get the current user profile
       const currentUserProfile = await profileService.getCurrentUserProfile();
       
-      // Call the optimize method that does the actual work
+      // Call the method that does the actual work
       return connectionService.getRecommendationsWithProfile(userId, currentUserProfile);
     } catch (error) {
       console.error('Error getting recommendations:', error);
@@ -21,7 +21,7 @@ const connectionService = {
   },
   
   /**
-   * Get recommendations using a provided profile (to avoid duplicate API calls)
+   * Get recommendations using a provided profile
    * @param {string} userId - The user ID
    * @param {object} userProfile - The user profile data
    * @returns {Promise} Promise object representing the recommendations
@@ -33,73 +33,67 @@ const connectionService = {
         user_id: userId
       });
       
-      // Filter recommendations based on latest skills and desired skills
       const result = response.data;
       
       if (!userProfile) {
-        return result; // If no profile is provided, return raw results
+        return result;
       }
       
+      // Enhanced connection recommendations
       if (result.potential_connections && result.potential_connections.length > 0) {
-        // Filter connections based on skills match with current profile
         const userSkills = new Set(userProfile.skills || []);
-        const userDesiredSkills = new Set(userProfile.desired_skills || []);
+        const userInterests = new Set(userProfile.interests || []);
         
-        // Enhance matching by checking skill overlap
-        result.potential_connections = result.potential_connections.map(connection => {
-          // Calculate matching skills and relevant skills to display first
-          const connectionSkills = connection.skills || [];
-          const matchingSkills = connectionSkills.filter(skill => 
-            userDesiredSkills.has(skill) || userSkills.has(skill)
-          );
-          
-          // Sort skills to show matching ones first
-          const sortedSkills = [
-            ...matchingSkills,
-            ...connectionSkills.filter(skill => !matchingSkills.includes(skill))
-          ];
-          
-          return {
-            ...connection,
-            skills: sortedSkills,
-            matchScore: matchingSkills.length // Add a match score for potential sorting
-          };
-        });
-        
-        // Sort connections by match score (highest first)
-        result.potential_connections.sort((a, b) => b.matchScore - a.matchScore);
+        result.potential_connections = result.potential_connections
+          .map(connection => {
+            const connectionSkills = new Set(connection.skills || []);
+            const connectionInterests = new Set(connection.interests || []);
+            
+            // Calculate skill and interest overlap
+            const skillOverlap = [...connectionSkills].filter(skill => 
+              userSkills.has(skill) || userInterests.has(skill)
+            );
+            
+            const interestOverlap = [...connectionInterests].filter(interest => 
+              userSkills.has(interest) || userInterests.has(interest)
+            );
+            
+            return {
+              ...connection,
+              matchScore: skillOverlap.length * 2 + interestOverlap.length,
+              matchingSkills: skillOverlap,
+              matchingInterests: interestOverlap
+            };
+          })
+          // Sort by match score, highest first
+          .sort((a, b) => b.matchScore - a.matchScore)
+          // Take top 10 matches
+          .slice(0, 10);
       }
       
+      // Enhanced learning recommendations
       if (result.recommended_learning && result.recommended_learning.length > 0) {
-        // Filter learning resources based on desired skills match with current profile
         const userDesiredSkills = new Set(userProfile.desired_skills || []);
         
-        // Only include learning resources that match current desired skills
         result.recommended_learning = result.recommended_learning
-          .filter(resource => 
-            resource.skills && resource.skills.some(skill => 
-              userDesiredSkills.has(skill)
-            )
-          )
           .map(resource => {
-            // Calculate matching skills
-            const resourceSkills = resource.skills || [];
-            const matchingSkills = resourceSkills.filter(skill => 
+            const resourceSkills = new Set(resource.skills || []);
+            
+            // Calculate skill overlap with desired skills
+            const skillOverlap = [...resourceSkills].filter(skill => 
               userDesiredSkills.has(skill)
             );
             
             return {
               ...resource,
-              skills: [
-                ...matchingSkills,
-                ...resourceSkills.filter(skill => !matchingSkills.includes(skill))
-              ],
-              matchScore: matchingSkills.length
+              matchScore: skillOverlap.length,
+              matchingSkills: skillOverlap
             };
-          });
-        
-        // Sort learning resources by match score (highest first)
-        result.recommended_learning.sort((a, b) => b.matchScore - a.matchScore);
+          })
+          // Sort by match score, highest first
+          .sort((a, b) => b.matchScore - a.matchScore)
+          // Take top 10 matches
+          .slice(0, 10);
       }
       
       return result;
@@ -111,13 +105,11 @@ const connectionService = {
   
   /**
    * Get current user ID
-   * For demo purposes, we'll return a static user ID
-   * In a real app, this would be retrieved from auth context
    * @returns {string} User ID
    */
   getCurrentUserId: () => {
-    // In a real app, this would be from auth context or similar
-    return 'user123'; // Alex Johnson from the mock data
+    // In a real app, this would be from auth context
+    return 'user123'; // Default user
   }
 };
 

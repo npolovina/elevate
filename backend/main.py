@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import time
-from config import settings
 
 # Add the directory containing mock data to Python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -69,7 +68,7 @@ class CacheStatsResponse(BaseModel):
 def get_ai_client():
     """Dependency for getting the AI client instance."""
     try:
-        client = DeepSeek(api_key="sk-c03808cf0b4544d7ae15e4bed8d5fddc")
+        client = DeepSeek(api_key=settings.DEEPSEEK_API_KEY)
         return client
     except Exception as e:
         logger.error(f"Failed to initialize DeepSeek client: {str(e)}")
@@ -165,7 +164,7 @@ async def get_documentation(
         Relevant Documents:
         {doc_context}
         
-        Provide a clear, concise explanation and guidance in a bullet structured format."""
+        Provide a clear, concise explanation and guidance."""
         
         try:
             ai_explanation = ai_client.get_response(
@@ -283,7 +282,7 @@ async def submit_mood_check(
     try:
         ai_insight = ai_client.get_response(
             user_input=prompt,
-            system_prompt="You are an empathetic career coach who doesn't ask additional questions, but thanks the user for being open to sharing their candid thoughts, and feelings, and that only by hearing them - we will be able to make have the appropriate level of awareness in order to address the concerns. If they answer is positive, thank them user for their dedication and hard work.",
+            system_prompt="You are an empathetic career coach who provides supportive guidance.",
             temperature=0.7
         )
         
@@ -297,7 +296,7 @@ async def submit_mood_check(
         return {
             "mood": request.mood,
             "feedback": request.feedback,
-            "ai_insight": "Thank you for sharing. Your feelings are valid and your feedback is greatly appreciated."
+            "ai_insight": "Thank you for sharing. Your feelings are valid, and it's great that you're taking time for self-reflection."
         }
 
 # Endpoint to get cache statistics

@@ -116,22 +116,11 @@ function JobList({ jobs, onSelectJob }) {
               </div>
               
               <div className="mt-2 flex flex-wrap gap-1">
-                {job.requirements.slice(0, 3).map((req, idx) => {
-                  // Check if this is a matching skill with the user's profile
-                  const isMatchingSkill = job.skillMatch > 0 && idx < job.skillMatch;
-                  return (
-                    <span key={idx} className={`text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium rounded ${
-                      isMatchingSkill 
-                        ? 'bg-green-100 text-green-700' // Highlight matching skills
-                        : 'bg-indigo-100 text-indigo-700'
-                    }`}>
-                      {req}
-                      {isMatchingSkill && (
-                        <span className="ml-1" title="Matching skill">✓</span>
-                      )}
-                    </span>
-                  );
-                })}
+                {job.requirements.slice(0, 3).map((req, idx) => (
+                  <span key={idx} className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-indigo-100 text-indigo-700 rounded">
+                    {req}
+                  </span>
+                ))}
                 {job.requirements.length > 3 && (
                   <span className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-gray-100 text-gray-700 rounded">
                     +{job.requirements.length - 3} more

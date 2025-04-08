@@ -24,8 +24,9 @@ api.interceptors.response.use(
   (response) => {
     return response;
   },
-  async   (error) => {
-    // No need to store originalRequest if we're not using it
+  async (error) => {
+    // We removed the originalRequest variable since it's not being used
+    
     if (error.response) {
       // Handle specific error statuses
       switch (error.response.status) {

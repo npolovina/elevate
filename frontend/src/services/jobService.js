@@ -1,5 +1,4 @@
 import api from './api';
-import connectionService from './connectionService';
 import profileService from './profileService';
 
 const jobService = {
@@ -60,12 +59,12 @@ const jobService = {
   
   /**
    * Get current user's job recommendations
-   * Uses the current user ID from connectionService and optionally accepts a profile
+   * Uses the current user ID from profileService and optionally accepts a profile
    * @param {object} userProfile - Optional user profile to avoid extra API call
    * @returns {Promise} Promise object representing the job recommendations
    */
   getCurrentUserJobRecommendations: async (userProfile = null) => {
-    const userId = connectionService.getCurrentUserId();
+    const userId = profileService.getCurrentUserId();
     
     // If no profile was provided, fetch it (might happen on initial load)
     if (!userProfile) {

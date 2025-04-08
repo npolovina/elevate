@@ -6,7 +6,6 @@ function LearningRecommendations({ learning }) {
       <div className="bg-white shadow-md rounded-lg p-6 mt-6">
         <h2 className="text-xl font-bold mb-4 text-gray-800">Learning Recommendations</h2>
         <p className="text-gray-600">No learning recommendations available at this time.</p>
-        <p className="text-gray-600 mt-2">Add skills you want to develop in your profile to receive personalized learning recommendations.</p>
       </div>
     );
   }
@@ -51,25 +50,11 @@ function LearningRecommendations({ learning }) {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex flex-wrap gap-1">
-                    {course.skills.slice(0, 2).map((skill, idx) => {
-                      // Check if this is a matching skill with user's desired skills
-                      const isMatchingSkill = idx < (course.matchScore || 0);
-                      return (
-                        <span 
-                          key={idx} 
-                          className={`text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium rounded ${
-                            isMatchingSkill 
-                              ? 'bg-green-100 text-green-700' // Highlight matching skills
-                              : 'bg-indigo-100 text-indigo-700'
-                          }`}
-                        >
-                          {skill}
-                          {isMatchingSkill && (
-                            <span className="ml-1" title="Matching desired skill">✓</span>
-                          )}
-                        </span>
-                      );
-                    })}
+                    {course.skills.slice(0, 2).map((skill, idx) => (
+                      <span key={idx} className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-indigo-100 text-indigo-700 rounded">
+                        {skill}
+                      </span>
+                    ))}
                     {course.skills.length > 2 && (
                       <span className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-gray-100 text-gray-700 rounded">
                         +{course.skills.length - 2}
