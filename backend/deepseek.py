@@ -3,6 +3,7 @@ import os
 import time
 import logging
 import requests
+import json
 from typing import Dict, Any, Optional, List, Union
 from requests.exceptions import RequestException, Timeout, ConnectionError
 
@@ -138,8 +139,11 @@ class DeepSeek:
         
         headers = self._prepare_headers()
         
+        # Create a cache key based on the payload
+        cache_key = json.dumps(data, sort_keys=True)
+        
         # Check cache first if we should use it
-        cached_response = response_cache.get(data)
+        cached_response = response_cache.get({"payload": cache_key})
         if cached_response:
             logger.info("Retrieved response from cache")
             return {
@@ -180,7 +184,7 @@ class DeepSeek:
                 # If response was successful and we got content, cache it
                 if "choices" in response_data and response_data["choices"]:
                     content = response_data["choices"][0]["message"]["content"]
-                    response_cache.set(data, content)
+                    response_cache.set({"payload": cache_key}, content)
                 
                 return response_data
                 
@@ -426,3 +430,150 @@ class DeepSeek:
         finally:
             # Restore original cache setting
             response_cache.enabled = original_cache_enabled
+            
+# Add specialized career-focused methods
+class CareerCoachDeepSeek(DeepSeek):
+    """Specialized DeepSeek client for career coaching and job recommendations"""
+    
+    def generate_job_insights(
+        self,
+        user_profile: Dict[str, Any],
+        job_postings: List[Dict[str, Any]],
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None
+    ) -> str:
+        """Generate career insights and job recommendations based on user profile.
+        
+        Args:
+            user_profile: Dictionary containing user profile information.
+            job_postings: List of job posting dictionaries.
+            temperature: Sampling temperature (0.0 to 1.0).
+            max_tokens: Maximum tokens in the response.
+            
+        Returns:
+            Career insights and job recommendations.
+        """
+        # Create user profile context
+        user_context = f"""
+        User: {user_profile.get('name', 'User')}
+        Current Role: {user_profile.get('role', 'Not specified')}
+        Department: {user_profile.get('department', 'Not specified')}
+        Experience: {user_profile.get('experience', 0)} years
+        Current Skills: {', '.join(user_profile.get('skills', []))}
+        Desired Skills: {', '.join(user_profile.get('desired_skills', []))}
+        Interests: {', '.join(user_profile.get('interests', []))}
+        """
+        
+        # Prepare job context (limit to top 5 for context length)
+        job_contexts = []
+        for i, job in enumerate(job_postings[:5]):
+            job_context = f"""
+            Job {i+1}: {job.get('title', 'Unnamed Position')}
+            Department: {job.get('department', 'Not specified')}
+            Location: {job.get('location', 'Not specified')}
+            Requirements: {', '.join(job.get('requirements', []))}
+            Preferred Skills: {', '.join(job.get('preferred_skills', []))}
+            Description: {job.get('description', 'No description provided')}
+            Salary Range: {job.get('salary_range', 'Not specified')}
+            """
+            job_contexts.append(job_context)
+        
+        jobs_context = "\n".join(job_contexts)
+        
+        # Create career coach prompt
+        prompt = f"""As a career coach, analyze these job matches for the user.
+
+USER PROFILE:
+{user_context}
+
+JOB MATCHES:
+{jobs_context}
+
+Based on the user's current skills, desired skills, and interests, provide personalized career advice about these job opportunities. Focus on:
+
+1. How well each position aligns with their current skills and interests
+2. How these roles could help them develop their desired skills
+3. Any specific growth opportunities these positions offer
+4. Which jobs might be the best match and why
+
+Your advice should be practical, balanced, and personalized to this user's specific situation.
+"""
+        
+        # Use specialized system prompt for career coaching
+        system_prompt = """You are an expert career coach specializing in tech careers. 
+You provide insightful, balanced, and personalized career guidance based on a user's skills, 
+interests, and career goals. Your advice is practical and helps users make informed decisions
+about job opportunities and career development."""
+        
+        # Get response with appropriate temperature for career advice
+        return self.get_response(
+            user_input=prompt,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            use_cache=True  # Cache career insights to improve performance
+        )
+    
+    def generate_skill_development_plan(
+        self,
+        user_profile: Dict[str, Any],
+        target_skills: List[str],
+        temperature: float = 0.6,
+        max_tokens: Optional[int] = None
+    ) -> str:
+        """Generate a personalized skill development plan.
+        
+        Args:
+            user_profile: Dictionary containing user profile information.
+            target_skills: List of skills the user wants to develop.
+            temperature: Sampling temperature (0.0 to 1.0).
+            max_tokens: Maximum tokens in the response.
+            
+        Returns:
+            Personalized skill development plan.
+        """
+        # Implementation for skill development planning
+        # Similar structure to generate_job_insights but focused on skill development
+        
+        # Create profile context
+        profile_context = f"""
+        User: {user_profile.get('name', 'User')}
+        Current Role: {user_profile.get('role', 'Not specified')}
+        Experience Level: {user_profile.get('experience', 0)} years
+        Current Skills: {', '.join(user_profile.get('skills', []))}
+        """
+        
+        # Create skills context
+        skills_context = "Target Skills to Develop:\n" + "\n".join([f"- {skill}" for skill in target_skills])
+        
+        # Create prompt for skill development
+        prompt = f"""As a career coach, create a personalized skill development plan.
+
+USER PROFILE:
+{profile_context}
+
+{skills_context}
+
+Create a practical skill development plan that will help this user acquire these target skills. Include:
+
+1. Specific learning resources or activities for each skill
+2. A realistic timeline for skill acquisition
+3. How to apply these skills in their current role
+4. How these skills will enhance their career opportunities
+
+Provide actionable advice that takes into account their current skill set and experience level.
+"""
+        
+        # Use specialized system prompt for skill development
+        system_prompt = """You are an expert career coach specializing in professional skill development.
+You create practical, personalized learning plans that help professionals acquire new skills efficiently.
+Your advice is specific, actionable, and tailored to each individual's background and goals."""
+        
+        # Get response with appropriate temperature for structured advice
+        return self.get_response(
+            user_input=prompt,
+            system_prompt=system_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            use_cache=True
+        )

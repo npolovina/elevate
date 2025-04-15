@@ -216,7 +216,7 @@ async def get_job_recommendations(
     request: ConnectionRecommendationRequest, 
     ai_client: DeepSeek = Depends(get_ai_client)
 ):
-    """Provide job recommendations based on user profile"""
+    """Provide job recommendations based on user profile with DeepSeek AI insights"""
     # Find the user
     user = find_user_profile(request.user_id)
     if not user:
@@ -230,25 +230,51 @@ async def get_job_recommendations(
                 for skill in user['skills']))
     ]
     
-    # Use AI to refine recommendations
+    # Use DeepSeek AI to refine recommendations
     if matched_jobs:
-        jobs_context = " ".join([
-            f"Job {job['job_id']}: {job['title']} in {job['department']} - Requirements: {', '.join(job['requirements'])}" 
-            for job in matched_jobs
+        # Build detailed context for the AI
+        user_context = f"""
+        User: {user['name']}
+        Current Role: {user['role']}
+        Department: {user['department']}
+        Experience: {user['experience']} years
+        Current Skills: {', '.join(user['skills'])}
+        Desired Skills: {', '.join(user.get('desired_skills', []))}
+        Interests: {', '.join(user.get('interests', []))}
+        """
+        
+        jobs_context = "\n".join([
+            f"Job {i+1}: {job['title']} in {job['department']} - {job['location']}\n" +
+            f"Requirements: {', '.join(job['requirements'])}\n" +
+            f"Preferred Skills: {', '.join(job.get('preferred_skills', []))}\n" +
+            f"Description: {job['description']}\n" +
+            f"Salary Range: {job.get('salary_range', 'Not specified')}"
+            for i, job in enumerate(matched_jobs[:5])  # Limit to 5 jobs for context length
         ])
         
-        prompt = f"""Analyze these job recommendations for user {user['name']} with skills {', '.join(user['skills'])} and desired skills {', '.join(user.get('desired_skills', []))}.
-        
-        Job Matches:
-        {jobs_context}
-        
-        Provide personalized commentary on how these roles align with the user's career aspirations and skill development."""
+        prompt = f"""As a career coach, analyze these job recommendations for {user['name']}.
+
+USER PROFILE:
+{user_context}
+
+JOB MATCHES:
+{jobs_context}
+
+Provide personalized career insights about these job opportunities. Focus on:
+1. How well each role aligns with the user's current skills
+2. How these opportunities could help develop their desired skills
+3. Which roles are the best match and why
+4. Any specific career growth opportunities these roles present
+
+Keep your analysis concise, practical, and focused on the user's career development.
+"""
         
         try:
+            # Call DeepSeek API for personalized insights
             ai_recommendations = ai_client.get_response(
                 user_input=prompt,
                 system_prompt="You are a career coach specializing in job recommendations and career development.",
-                temperature=0.6
+                temperature=0.7
             )
             
             return {
@@ -258,9 +284,15 @@ async def get_job_recommendations(
         except Exception as e:
             logger.error(f"Error generating job recommendations: {str(e)}")
             ai_recommendations = "Unable to generate personalized job recommendations due to an error."
+            
+            # Still return the matched jobs even if AI insights fail
+            return {
+                "recommended_jobs": matched_jobs,
+                "ai_recommendations": "Unable to generate personalized insights at this time. Please try again later."
+            }
     
-    return {"recommended_jobs": matched_jobs, "ai_recommendations": "No suitable job matches found at this time."}
-
+    # Handle case with no matching jobs
+    return {"recommended_jobs": matched_jobs, "ai_recommendations": "No suitable job matches found based on your profile."}
 @app.post("/api/create/mood-check")
 async def submit_mood_check(
     request: MoodCheckRequest, 
