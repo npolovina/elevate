@@ -2,22 +2,49 @@ import React, { useEffect, useState } from 'react';
 import JobList from '../components/jobs/JobList';
 import JobDetails from '../components/jobs/JobDetails';
 import jobService from '../services/jobService';
+import profileService from '../services/profileService';
+import Loading from '../components/common/Loading';
 
 function Jobs() {
   const [jobData, setJobData] = useState({
     recommended_jobs: [],
     ai_recommendations: ''
   });
+  const [userProfile, setUserProfile] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [error, setError] = useState(null);
 
+  // First, fetch the user profile
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      setIsLoadingProfile(true);
+      try {
+        const profile = await profileService.getCurrentUserProfile();
+        setUserProfile(profile);
+      } catch (err) {
+        console.error('Error fetching user profile:', err);
+        // Continue even if profile fetch fails
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, []);
+
+  // Then, fetch job recommendations once we have the profile
   useEffect(() => {
     const fetchJobRecommendations = async () => {
+      // Only proceed if profile is loaded (or failed to load)
+      if (isLoadingProfile) return;
+      
       setIsLoading(true);
       setError(null);
 
       try {
+        // Pass the user profile to the job service for better matching
         const data = await jobService.getCurrentUserJobRecommendations();
         setJobData(data);
       } catch (err) {
@@ -29,7 +56,7 @@ function Jobs() {
     };
 
     fetchJobRecommendations();
-  }, []);
+  }, [isLoadingProfile]);
 
   const handleSelectJob = (job) => {
     setSelectedJob(job);
@@ -41,13 +68,15 @@ function Jobs() {
     setSelectedJob(null);
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingProfile) {
     return (
       <div className="container mx-auto">
         <h1 className="text-2xl font-bold text-gray-800 mb-6">Job Recommendations</h1>
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-        </div>
+        <Loading message={
+          isLoadingProfile 
+            ? "Loading your profile for personalized job matching..." 
+            : "Finding personalized job recommendations..."
+        } />
       </div>
     );
   }
@@ -65,7 +94,7 @@ function Jobs() {
       <div className="mb-6">
         <p className="text-gray-600">
           Discover job opportunities that match your skills and career interests. 
-          These recommendations are personalized based on your profile and experience.
+          These recommendations are personalized based on your profile, existing skills, and desired skills.
         </p>
       </div>
       

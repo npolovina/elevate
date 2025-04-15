@@ -24,7 +24,7 @@ function JobList({ jobs, onSelectJob }) {
   return (
     <div className="bg-white shadow-md rounded-lg p-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-3 md:mb-0">Recommended Jobs</h2>
+        <h2 className="text-xl font-bold text-gray-800 mb-3 md:mb-0">Recommended Jobs ({filteredJobs.length})</h2>
         
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Search input */}
@@ -100,7 +100,7 @@ function JobList({ jobs, onSelectJob }) {
                   </div>
                 </div>
                 
-                <div className="mt-2 md:mt-0">
+                <div className="mt-2 md:mt-0 flex items-center space-x-2">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                     job.status === 'Open' 
                       ? 'bg-green-100 text-green-800' 
@@ -108,6 +108,12 @@ function JobList({ jobs, onSelectJob }) {
                   }`}>
                     {job.status}
                   </span>
+                  
+                  {job.internal_only && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Internal
+                    </span>
+                  )}
                 </div>
               </div>
               
@@ -115,18 +121,96 @@ function JobList({ jobs, onSelectJob }) {
                 <p className="text-sm text-gray-600">{job.description}</p>
               </div>
               
-              <div className="mt-2 flex flex-wrap gap-1">
-                {job.requirements.slice(0, 3).map((req, idx) => (
-                  <span key={idx} className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-indigo-100 text-indigo-700 rounded">
-                    {req}
-                  </span>
-                ))}
-                {job.requirements.length > 3 && (
-                  <span className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-gray-100 text-gray-700 rounded">
-                    +{job.requirements.length - 3} more
-                  </span>
-                )}
+              <div className="mt-2">
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-xs font-medium text-gray-500">REQUIREMENTS:</p>
+                  {job.skillMatchPercentage !== undefined && (
+                    <span className="text-xs text-gray-500">
+                      Match: <span className={`font-medium ${job.skillMatchPercentage > 50 ? 'text-green-600' : 'text-gray-600'}`}>
+                        {job.skillMatchPercentage}%
+                      </span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {job.requirements.map((req, idx) => {
+                    // Check if this requirement matches user skills
+                    const isMatchingSkill = job.matchingSkills && job.matchingSkills.includes(req);
+                    const isMatchingDesiredSkill = job.matchingDesiredSkills && job.matchingDesiredSkills.includes(req);
+                    
+                    let colorClasses = 'bg-gray-100 text-gray-700';
+                    if (isMatchingSkill) {
+                      colorClasses = 'bg-green-100 text-green-700 border border-green-300';
+                    } else if (isMatchingDesiredSkill) {
+                      colorClasses = 'bg-blue-100 text-blue-700 border border-blue-300';
+                    }
+                    
+                    return (
+                      <span 
+                        key={idx} 
+                        className={`text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium rounded ${colorClasses}`}
+                      >
+                        {req}
+                        {isMatchingSkill && (
+                          <svg className="inline-block ml-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </span>
+                    );
+                  })}
+                  {job.requirements.length > 6 && (
+                    <span className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-gray-100 text-gray-700 rounded">
+                      +{job.requirements.length - 6} more
+                    </span>
+                  )}
+                </div>
               </div>
+              
+              {job.preferred_skills && job.preferred_skills.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs font-medium text-gray-500 mb-1">PREFERRED:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {job.preferred_skills.map((skill, idx) => {
+                      // Check if this preferred skill matches user skills
+                      const isMatchingPreferred = job.matchingPreferredSkills && job.matchingPreferredSkills.includes(skill);
+                      
+                      let colorClasses = 'bg-gray-100 text-gray-700';
+                      if (isMatchingPreferred) {
+                        colorClasses = 'bg-purple-100 text-purple-700 border border-purple-300';
+                      }
+                      
+                      if (idx < 4 || isMatchingPreferred) {
+                        return (
+                          <span 
+                            key={idx} 
+                            className={`text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium rounded ${colorClasses}`}
+                          >
+                            {skill}
+                            {isMatchingPreferred && (
+                              <svg className="inline-block ml-1 h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </span>
+                        );
+                      }
+                      return null;
+                    }).filter(Boolean)}
+                    {job.preferred_skills.length > 4 && (
+                      <span className="text-xs inline-block py-1 px-2 leading-none text-center whitespace-nowrap align-baseline font-medium bg-gray-100 text-gray-700 rounded">
+                        +{job.preferred_skills.length - 4} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {job.salary_range && (
+                <div className="mt-2 text-sm text-gray-600">
+                  <span className="font-medium">Salary Range:</span> {job.salary_range}
+                </div>
+              )}
               
               <div className="mt-3 text-right">
                 <button 

@@ -49,6 +49,51 @@ function JobDetails({ job, aiRecommendations, onBack }) {
         )}
       </div>
       
+      {/* Skill Match Overview */}
+      {job.skillMatchPercentage !== undefined && (
+        <div className="mt-6 bg-white border border-gray-200 rounded-lg p-4">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Your Match</h3>
+          <div className="mb-3">
+            <div className="flex justify-between mb-1">
+              <span className="text-sm font-medium text-gray-700">Skills Match</span>
+              <span className={`text-sm font-medium ${job.skillMatchPercentage > 70 ? 'text-green-600' : job.skillMatchPercentage > 40 ? 'text-blue-600' : 'text-gray-600'}`}>
+                {job.skillMatchPercentage}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div 
+                className={`h-2.5 rounded-full ${job.skillMatchPercentage > 70 ? 'bg-green-600' : job.skillMatchPercentage > 40 ? 'bg-blue-500' : 'bg-gray-500'}`} 
+                style={{ width: `${job.skillMatchPercentage}%` }}
+              ></div>
+            </div>
+          </div>
+          
+          {(job.matchingSkills && job.matchingSkills.length > 0) && (
+            <div className="mb-2">
+              <span className="text-sm text-gray-600">
+                <span className="font-medium text-green-700">Matching Skills:</span> {job.matchingSkills.join(', ')}
+              </span>
+            </div>
+          )}
+          
+          {(job.matchingDesiredSkills && job.matchingDesiredSkills.length > 0) && (
+            <div className="mb-2">
+              <span className="text-sm text-gray-600">
+                <span className="font-medium text-blue-700">Skills You Want to Develop:</span> {job.matchingDesiredSkills.join(', ')}
+              </span>
+            </div>
+          )}
+          
+          {(job.matchingPreferredSkills && job.matchingPreferredSkills.length > 0) && (
+            <div>
+              <span className="text-sm text-gray-600">
+                <span className="font-medium text-purple-700">Matching Preferred Skills:</span> {job.matchingPreferredSkills.join(', ')}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      
       {/* Description */}
       <div className="mt-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-2">Description</h3>
@@ -58,10 +103,55 @@ function JobDetails({ job, aiRecommendations, onBack }) {
       {/* Requirements */}
       <div className="mt-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-2">Requirements</h3>
-        <ul className="list-disc pl-5 text-gray-700">
-          {job.requirements.map((req, idx) => (
-            <li key={idx} className="mb-1">{req}</li>
-          ))}
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {job.requirements.map((req, idx) => {
+            // Check if this requirement matches user skills
+            const isMatchingSkill = job.matchingSkills && job.matchingSkills.includes(req);
+            const isMatchingDesiredSkill = job.matchingDesiredSkills && job.matchingDesiredSkills.includes(req);
+            
+            let iconColor = 'text-gray-500';
+            let bgColor = 'bg-white';
+            let borderColor = '';
+            
+            if (isMatchingSkill) {
+              iconColor = 'text-green-500';
+              bgColor = 'bg-green-50';
+              borderColor = 'border border-green-200';
+            } else if (isMatchingDesiredSkill) {
+              iconColor = 'text-blue-500';
+              bgColor = 'bg-blue-50';
+              borderColor = 'border border-blue-200';
+            }
+            
+            return (
+              <li 
+                key={idx} 
+                className={`flex items-start p-2 rounded-md ${bgColor} ${borderColor}`}
+              >
+                <svg
+                  className={`h-5 w-5 ${iconColor} mr-2 flex-shrink-0 mt-0.5`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  {isMatchingSkill ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  )}
+                </svg>
+                <span className="text-gray-700">
+                  {req}
+                  {isMatchingSkill && (
+                    <span className="ml-1 text-xs text-green-600 font-medium">(You have this skill)</span>
+                  )}
+                  {isMatchingDesiredSkill && (
+                    <span className="ml-1 text-xs text-blue-600 font-medium">(Skill you want to develop)</span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </div>
       
@@ -69,10 +159,43 @@ function JobDetails({ job, aiRecommendations, onBack }) {
       {job.preferred_skills && job.preferred_skills.length > 0 && (
         <div className="mt-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-2">Preferred Skills</h3>
-          <ul className="list-disc pl-5 text-gray-700">
-            {job.preferred_skills.map((skill, idx) => (
-              <li key={idx} className="mb-1">{skill}</li>
-            ))}
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {job.preferred_skills.map((skill, idx) => {
+              // Check if this preferred skill matches user skills
+              const isMatchingPreferred = job.matchingPreferredSkills && job.matchingPreferredSkills.includes(skill);
+              
+              let iconColor = 'text-gray-500';
+              let bgColor = 'bg-white';
+              let borderColor = '';
+              
+              if (isMatchingPreferred) {
+                iconColor = 'text-purple-500';
+                bgColor = 'bg-purple-50';
+                borderColor = 'border border-purple-200';
+              }
+              
+              return (
+                <li 
+                  key={idx} 
+                  className={`flex items-start p-2 rounded-md ${bgColor} ${borderColor}`}
+                >
+                  <svg
+                    className={`h-5 w-5 ${iconColor} mr-2 flex-shrink-0 mt-0.5`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-gray-700">
+                    {skill}
+                    {isMatchingPreferred && (
+                      <span className="ml-1 text-xs text-purple-600 font-medium">(Matching skill)</span>
+                    )}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

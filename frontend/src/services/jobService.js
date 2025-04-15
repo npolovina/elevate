@@ -5,52 +5,73 @@ const jobService = {
   /**
    * Get job recommendations for a user
    * @param {string} userId - The user ID
-   * @param {object} userProfile - Optional user profile to avoid extra API call
+   * @param {object} userProfile - Optional user profile data
    * @returns {Promise} Promise object representing the job recommendations
    */
   getJobRecommendations: async (userId, userProfile = null) => {
     try {
-      // Make the API call
+      // If no profile was provided but we need it, fetch it
+      if (!userProfile) {
+        userProfile = await profileService.getCurrentUserProfile();
+      }
+      
+      // Make the API call with user profile context
       const response = await api.post('/elevate/job-recommendations', {
         user_id: userId
       });
       
-      // Get the raw response data
-      const data = response.data;
+      const result = response.data;
       
-      // If we have a profile, enhance the job recommendations
-      if (userProfile && data.recommended_jobs && data.recommended_jobs.length > 0) {
-        // Create sets for faster lookup
+      // Client-side enhancement: highlight matching skills
+      if (userProfile && result.recommended_jobs) {
         const userSkills = new Set(userProfile.skills || []);
         const userDesiredSkills = new Set(userProfile.desired_skills || []);
         
-        // Tag jobs with match scores
-        data.recommended_jobs = data.recommended_jobs.map(job => {
-          const jobRequirements = job.requirements || [];
-          const matchingSkills = jobRequirements.filter(req => 
-            userSkills.has(req) || 
-            Array.from(userSkills).some(skill => req.includes(skill))
+        result.recommended_jobs = result.recommended_jobs.map(job => {
+          // Find requirements that match user's current skills
+          const matchingSkills = job.requirements.filter(req => 
+            userSkills.has(req) || userSkills.has(req.split(' ')[0])
           );
           
-          const desiredSkillMatches = jobRequirements.filter(req => 
-            userDesiredSkills.has(req) || 
-            Array.from(userDesiredSkills).some(skill => req.includes(skill))
+          // Find requirements that match user's desired skills
+          const matchingDesiredSkills = job.requirements.filter(req => 
+            userDesiredSkills.has(req) || userDesiredSkills.has(req.split(' ')[0])
           );
           
+          // Find preferred skills that match user's current or desired skills
+          const matchingPreferredSkills = job.preferred_skills ? 
+            job.preferred_skills.filter(skill => 
+              userSkills.has(skill) || 
+              userDesiredSkills.has(skill) || 
+              userSkills.has(skill.split(' ')[0]) ||
+              userDesiredSkills.has(skill.split(' ')[0])
+            ) : [];
+          
+          // Calculate overall match score based on matches
+          // Weight current skills higher than desired skills
+          const matchScore = (matchingSkills.length * 3) + 
+                             (matchingDesiredSkills.length * 1) + 
+                             (matchingPreferredSkills.length * 2);
+          
+          // Add match information to job
           return {
             ...job,
-            skillMatch: matchingSkills.length,
-            desiredSkillMatch: desiredSkillMatches.length,
-            // Total match score (skills count more than desired skills)
-            matchScore: (matchingSkills.length * 2) + desiredSkillMatches.length
+            matchingSkills,
+            matchingDesiredSkills,
+            matchingPreferredSkills,
+            matchScore,
+            skillMatchPercentage: Math.min(
+              100, 
+              Math.round((matchingSkills.length / Math.max(1, job.requirements.length)) * 100)
+            )
           };
         });
         
-        // Sort jobs by match score (highest first)
-        data.recommended_jobs.sort((a, b) => b.matchScore - a.matchScore);
+        // Sort by match score (highest first)
+        result.recommended_jobs.sort((a, b) => b.matchScore - a.matchScore);
       }
       
-      return data;
+      return result;
     } catch (error) {
       console.error('Error getting job recommendations:', error);
       throw error;
@@ -59,19 +80,19 @@ const jobService = {
   
   /**
    * Get current user's job recommendations
-   * Uses the current user ID from profileService and optionally accepts a profile
-   * @param {object} userProfile - Optional user profile to avoid extra API call
+   * Uses the current user ID and profile from profileService
    * @returns {Promise} Promise object representing the job recommendations
    */
-  getCurrentUserJobRecommendations: async (userProfile = null) => {
-    const userId = profileService.getCurrentUserId();
-    
-    // If no profile was provided, fetch it (might happen on initial load)
-    if (!userProfile) {
-      userProfile = await profileService.getCurrentUserProfile();
+  getCurrentUserJobRecommendations: async () => {
+    try {
+      const userId = profileService.getCurrentUserId();
+      const userProfile = await profileService.getCurrentUserProfile();
+      
+      return jobService.getJobRecommendations(userId, userProfile);
+    } catch (error) {
+      console.error('Error getting current user job recommendations:', error);
+      throw error;
     }
-    
-    return jobService.getJobRecommendations(userId, userProfile);
   }
 };
 
