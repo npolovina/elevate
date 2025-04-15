@@ -99,43 +99,79 @@ async def deepseek_error_handler(request: Request, exc: DeepSeekAPIError):
         content={"detail": f"AI service error: {exc.message}"}
     )
 
-# Endpoints for different features
+# Updated STAR summary generation endpoint with better error handling
+
 @app.post("/api/create/star-summary")
 async def generate_star_summary(
     request: STARRequest, 
     ai_client: DeepSeek = Depends(get_ai_client)
 ):
     """Generate STAR format summary for a completed JIRA ticket"""
+    logger.info(f"STAR summary requested for ticket: {request.ticket_id}")
+    
     # Find the ticket
     ticket = next((t for t in jira_tickets if t['ticket_id'] == request.ticket_id), None)
     if not ticket:
+        logger.error(f"Ticket not found: {request.ticket_id}")
         raise HTTPException(status_code=404, detail="Ticket not found")
     
     # Check if ticket is completed
     if ticket.get('status') != 'Completed':
+        logger.warning(f"Attempt to generate STAR summary for incomplete ticket: {request.ticket_id}")
         raise HTTPException(status_code=400, detail="STAR summaries can only be generated for completed tickets")
     
     # Prepare prompt for STAR summary
-    prompt = f"""Generate a STAR (Situation, Task, Action, Result) format summary for this completed JIRA ticket:
-    Title: {ticket['title']}
-    Description: {ticket['description']}
-    Comments: {' '.join([c['text'] for c in ticket.get('comments', [])])}
-    Additional Context: {request.additional_context or ''}
-    
-    Format the response as a clear STAR format summary highlighting the impact and achievements."""
+    prompt = f"""Generate a professional STAR (Situation, Task, Action, Result) format summary for this completed work ticket:
+
+TICKET INFORMATION:
+- ID: {ticket['ticket_id']}
+- Title: {ticket['title']}
+- Description: {ticket['description']}
+- Priority: {ticket['priority']}
+- Started: {ticket['start_date']}
+- Completed: {ticket['completion_date']}
+
+COMMENTS:
+{' '.join([f"- {c['user']}: {c['text']}" for c in ticket.get('comments', [])])}
+
+ADDITIONAL CONTEXT PROVIDED BY USER:
+{request.additional_context or 'No additional context provided.'}
+
+Format your response in clear STAR format with these sections:
+1. Situation: Describe the context and background
+2. Task: Explain what needed to be accomplished and why
+3. Action: Detail the specific steps you took to complete the task
+4. Result: Highlight the outcomes, focusing on measurable impacts and what was learned
+
+Keep your summary professional, focused on achievements, and suitable for use in performance reviews or job interviews.
+"""
     
     try:
+        # Set a system prompt specific to STAR format
+        system_prompt = """You are a professional career coach specializing in creating STAR format summaries. 
+        You transform work accomplishments into compelling, achievement-focused narratives that highlight skills and impact.
+        Your summaries are well-structured, concise, and emphasize measurable results and valuable skills demonstrated."""
+        
         # Use the improved client with better error handling and caching
         star_summary = ai_client.get_response(
             user_input=prompt,
-            system_prompt="You are a helpful career coach specializing in creating professional STAR format summaries.",
-            temperature=0.5,  # Lower temperature for more focused/professional responses
+            system_prompt=system_prompt,
+            temperature=0.4,  # Lower temperature for more focused/professional responses
             use_cache=True    # Enable caching for STAR summaries
         )
+        
+        # Log successful generation
+        logger.info(f"Successfully generated STAR summary for ticket {request.ticket_id}")
+        
         return {"star_summary": star_summary}
     except Exception as e:
-        logger.error(f"Unexpected error in STAR summary generation: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Error generating STAR summary for ticket {request.ticket_id}: {str(e)}")
+        # Provide a more specific error message based on the exception type
+        if isinstance(e, DeepSeekAPIError):
+            raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
+        else:
+            raise HTTPException(status_code=500, detail=f"Failed to generate STAR summary: {str(e)}")
+        
 
 @app.post("/api/create/documentation")
 async def get_documentation(
@@ -191,12 +227,41 @@ async def get_connection_recommendations(request: ConnectionRecommendationReques
         raise HTTPException(status_code=404, detail="User not found")
     
     # Find potential connections with similar skills/interests
-    potential_connections = [
-        profile for profile in user_profiles 
-        if (profile['user_id'] != user['user_id'] and 
-            (set(profile['skills']) & set(user.get('interests', [])) or 
-             set(profile['interests']) & set(user['skills'])))
-    ][:5]  # Limit to top 5
+    # Improved algorithm to find better matches
+    potential_connections = []
+    
+    for profile in user_profiles:
+        if profile['user_id'] != user['user_id']:
+            # Calculate skill overlap
+            skill_overlap = set(profile['skills']) & set(user.get('skills', []))
+            # Calculate interest overlap
+            interest_overlap_1 = set(profile['skills']) & set(user.get('interests', []))
+            interest_overlap_2 = set(profile['interests']) & set(user['skills'])
+            # Calculate desired skills overlap (for learning from others)
+            desired_skills_overlap = set(profile['skills']) & set(user.get('desired_skills', []))
+            
+            # Calculate a match score
+            match_score = (
+                len(skill_overlap) * 2 +      # Weight skill matches higher
+                len(interest_overlap_1) +
+                len(interest_overlap_2) +
+                len(desired_skills_overlap) * 1.5  # Weight desired skills matches
+            )
+            
+            # Only include if there's at least some overlap
+            if match_score > 0:
+                potential_connections.append({
+                    **profile,
+                    "match_score": match_score,
+                    "match_reason": _generate_match_reason(
+                        skill_overlap, 
+                        interest_overlap_1 | interest_overlap_2,
+                        desired_skills_overlap
+                    )
+                })
+    
+    # Sort by match score (highest first) and take top results
+    potential_connections.sort(key=lambda x: x.get('match_score', 0), reverse=True)
     
     # Find learning materials to close skill gaps
     desired_skills = user.get('desired_skills', [])
@@ -210,6 +275,30 @@ async def get_connection_recommendations(request: ConnectionRecommendationReques
         "potential_connections": potential_connections,
         "recommended_learning": recommended_learning
     }
+
+def _generate_match_reason(skill_overlap, interest_overlap, desired_skills_overlap):
+    """Generate a human-readable reason for the match"""
+    reasons = []
+    
+    if skill_overlap:
+        if len(skill_overlap) == 1:
+            reasons.append(f"Both know {list(skill_overlap)[0]}")
+        else:
+            reasons.append(f"Both know {len(skill_overlap)} common skills")
+    
+    if interest_overlap:
+        if len(interest_overlap) == 1:
+            reasons.append(f"Shares your interest in {list(interest_overlap)[0]}")
+        else:
+            reasons.append(f"Shares {len(interest_overlap)} of your interests")
+    
+    if desired_skills_overlap:
+        if len(desired_skills_overlap) == 1:
+            reasons.append(f"Can help you learn {list(desired_skills_overlap)[0]}")
+        else:
+            reasons.append(f"Has {len(desired_skills_overlap)} skills you want to learn")
+    
+    return ", ".join(reasons)
 
 @app.post("/api/elevate/job-recommendations")
 async def get_job_recommendations(

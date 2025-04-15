@@ -66,9 +66,7 @@ const connectionService = {
             };
           })
           // Sort by match score, highest first
-          .sort((a, b) => b.matchScore - a.matchScore)
-          // Take top 10 matches
-          .slice(0, 10);
+          .sort((a, b) => b.matchScore - a.matchScore);
       }
       
       // Enhanced learning recommendations
@@ -91,10 +89,11 @@ const connectionService = {
             };
           })
           // Sort by match score, highest first
-          .sort((a, b) => b.matchScore - a.matchScore)
-          // Take top 10 matches
-          .slice(0, 10);
+          .sort((a, b) => b.matchScore - a.matchScore);
       }
+      
+      // Log the number of connections for debugging
+      console.log(`Returning ${result.potential_connections.length} potential connections`);
       
       return result;
     } catch (error) {

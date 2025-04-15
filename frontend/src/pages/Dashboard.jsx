@@ -129,9 +129,9 @@ function Dashboard() {
         <div className="bg-white shadow-md rounded-lg p-6">
           <h2 className="text-xl font-bold mb-4 text-gray-800">Recommended Connections</h2>
           {dashboardData.recommendations.potential_connections.length > 0 ? (
-            <div className="divide-y divide-gray-200">
-              {dashboardData.recommendations.potential_connections.slice(0, 3).map((connection) => (
-                <div key={connection.user_id} className="py-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {dashboardData.recommendations.potential_connections.slice(0, 4).map((connection) => (
+                <div key={connection.user_id} className="py-3 border rounded-lg p-3 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start">
                     <div className="mr-3 flex-shrink-0 h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-800 text-sm font-semibold">
                       {connection.name.split(' ').map(n => n[0]).join('')}
